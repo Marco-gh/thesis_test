@@ -2,11 +2,16 @@ clc;clear;close all
 %% DEF SIS
 % Matrice instabile
 % A = [1 2 -2 -2;1.5 -0.5 1.5 0;1.5 0.5 -2.5 -2;2 2 -2 -3];
-% Moti oscillatori ma stabili
-A = [-0.1   -1.5    0      0;
-      1.5   -0.1    0      0;
-      0      0     -0.05  -0.8;
-      0      0      0.8   -0.05];
+% Moti oscillatori e stabili
+% A = [-0.1   -1.5    0      0;
+%       1.5   -0.1    0      0;
+%       0      0     -0.05  -0.8;
+%       0      0      0.8   -0.05];
+% Moti oscillatori e instabili
+A = [ 0.10  -1.50   0      0;
+    1.50   0.10   0      0;
+    0      0      0.05  -0.80;
+    0      0      0.80   0.05];
 
 C{1} = [1 0 0 1];
 C{2} = [0 1 1 0];
@@ -15,42 +20,42 @@ C{4} = [0 0 0 1];
 
 [V,D,W] = eig(A);
 n = size(A,1);
+%% Test osservabilità globale
+H = vertcat(C{:});
+assert(rank(obsv(A,H))==n)
 %% Def rete
 n_agents = 4;
-L = [2 -1 0 -1 
+Lgraph = [2 -1 0 -1 
      0 1 -1 0
      -1 -1 2 0
      -1 0 0 1];
-Adj = diag(diag(L))-L;
+Adj = diag(diag(Lgraph))-Lgraph;
 %% Matrici di osservabilità
-rankO = cell(1,4);
-O = cell(1,4);
-for i=1:n
+rankO = cell(1,n_agents);
+O = cell(1,n_agents);
+for i=1:n_agents
     O{i} = obsv(A,C{i});
     rankO{i} = rank(O{i});
 end
 %% DECOMPOSIZIONE DI OSSERVABILITA'
-Abar = cell(1,4);
-Bbar = cell(1,4);
-Cbar = cell(1,4);
-T = cell(1,4);
+Abar = cell(1,n_agents);
+Bbar = cell(1,n_agents);
+Cbar = cell(1,n_agents);
+T = cell(1,n_agents);
 for i=1:n_agents
     [Abar{i},Bbar{i},Cbar{i},T{i}]=detectabilty_decomposition(O{i},A,zeros(n,1),C{i});
 end
-%% CALCOLO GUADAGNO L
-% Piazzamento poli per ogni singolo osservatore, per dinamiche osservabili
-% Da rendere dinamico
-L1 = place(Abar{1}',C{1}',[-1 -2 -3 -4])';
-L2 = place(Abar{2}',C{2}',[-1 -2 -3 -4])';
-L3 = place(Abar{3}(1:2,1:2)',Cbar{3}(1:2)',[-1 -2])';
-L4 = place(Abar{4}(1:2,1:2)',Cbar{4}(1:2)',[-1 -2])';
 %% Calcolo guadagni da "A Simple Approach to Distributed Observer Design for Linear Systems"
 % Punti 1-2 pg. 5
-r = null(L');
+r = null(Lgraph');
 r = n_agents*r/sum(r);
 R = diag(r);
 
-Lhat = R*L+L'*R;
+% Grafo fortemente connesso
+assert(rank(Lgraph) == n_agents-1)
+assert(all(r>0))
+
+Lhat = R*Lgraph+Lgraph'*R;
 
 g = cell(1,n_agents);
 for i = 1:n_agents
@@ -73,7 +78,7 @@ end
 
 % Punto 4
 alpha = 1e-4; % Tasso di decadimento
-gamma = cell(1,4); % Coefficienti di accoppiamento globale
+gamma = cell(1,n_agents); % Coefficienti di accoppiamento globale
 for i=1:n_agents
     gamma{i}=0;
     v = rankO{i};
@@ -112,8 +117,8 @@ gamma=max(max(cell2mat(gamma)),1.1*max(2*alpha*r/eps));
 
 % Punto 5
 L_io = cell(1,n_agents);
-A_io{i} = cell(1,n_agents);
-C_io{i} = cell(1,n_agents);
+A_io = cell(1,n_agents);
+C_io = cell(1,n_agents);
 for i=1:n_agents
     v = rankO{i};
     if v>0
@@ -131,10 +136,10 @@ for i=1:n_agents
 end
 
 % Punto 6-7 - Individuare Q di Lyapunov e guadagno locale
-P_io = cell(1,4);
-L = cell(1,4);
-M = cell(1,4);
-for i=1:4
+P_io = cell(1,n_agents);
+L = cell(1,n_agents);
+M = cell(1,n_agents);
+for i=1:n_agents
     v = rankO{i};
     nu=n-v;
 
@@ -148,23 +153,25 @@ for i=1:4
     L{i} = T{i}*[L_io{i};zeros(nu,p_i)];
     M{i} = T{i}*[inv(P_io{i}) zeros(v,nu);zeros(nu,v) eye(nu)]*T{i}'
 end
-
-%% SIM PLANT E NODI
-tmax = 50;
-
+%% Def stato esteso, parametri simulazione comuni
 xd=@(t,x) A*x;
 x0 = randn(n,1);
 xhat0 = cell(1,n);
 % Vettore di stato con stato originale + tutte le stime (n+n*n_agents):
 z0 = x0;
-for i = 1:n
+for i = 1:n_agents
     xhat0{i} = randn(n,1)*2.5;
     % xhat0{i} = zeros(n,1);
 
     z0 = [z0;xhat0{i}];
 end
 
-[t,z]=ode45(@(t,z) distributedObserver_ODE(z,A,C,L,M,gamma,Adj,n_agents,n),[0 tmax],z0);
+tmax = 150;
+%% Sim sensa ritardi
+% [t,z]=ode15s(@(t,z) distributedObserver_ODE(z,A,C,L,M,gamma,Adj,n_agents,n),[0 tmax],z0);
+%% Sim con delay
+tau = 0.1;
+initial_history
 %% RES
 x=z(:,1:n);
 xhat=cell(1,n_agents);
@@ -176,8 +183,8 @@ end
 figure;hold on;grid on
 for i=1:n_agents
     e=xhat{i}-x;
-    plot(t,vecnorm(e,2,2))
     % plot(t,e)
+    plot(t,vecnorm(e,2,2)) % Norma 2 fatte per righe (una per x_i)
 end
 legend('e1','e2','e3','e4')
 xlabel('t')

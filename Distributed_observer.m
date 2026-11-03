@@ -111,8 +111,7 @@ for i=1:n_agents
         gamma{i} = gamma{i} + step;
     end
 end
-% Serve a garantire q positivo nel calcolo sotto con un margine del 10
-% percernto
+% q positivo con un margine del 10 percernto
 gamma=max(max(cell2mat(gamma)),1.1*max(2*alpha*r/eps));
 
 % Punto 5
@@ -153,10 +152,7 @@ for i=1:n_agents
     L{i} = T{i}*[L_io{i};zeros(nu,p_i)];
     M{i} = T{i}*[inv(P_io{i}) zeros(v,nu);zeros(nu,v) eye(nu)]*T{i}'
 end
-
-%% SIM PLANT E NODI
-tmax = 150;
-
+%% Def stato esteso, parametri simulazione comuni
 xd=@(t,x) A*x;
 x0 = randn(n,1);
 xhat0 = cell(1,n);
@@ -169,8 +165,15 @@ for i = 1:n_agents
     z0 = [z0;xhat0{i}];
 end
 
-% Con le tolleranze di ode45 esplodeva
-[t,z]=ode15s(@(t,z) distributedObserver_ODE(z,A,C,L,M,gamma,Adj,n_agents,n),[0 tmax],z0);
+tmax = 150;
+%% Sim sensa ritardi
+% [t,z]=ode15s(@(t,z) distributedObserver_ODE(z,A,C,L,M,gamma,Adj,n_agents,n),[0 tmax],z0);
+%% Sim con delay
+tau = 0.052; % Senza compensazione il ritardo massimo accettabile fino a 150 è ~0.052
+in_history = @(t)z0;
+sol = dde23(@(t,z,Z)distributedObserver_DDE(z,Z,A,C,L,M,gamma,Adj,n_agents,n),tau,in_history,[0 tmax]);
+t = sol.x';
+z = sol.y';
 %% RES
 x=z(:,1:n);
 xhat=cell(1,n_agents);
