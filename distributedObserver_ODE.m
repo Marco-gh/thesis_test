@@ -1,4 +1,4 @@
-function dz = distributedObserver_ODE(z,A,C,L,M,gamma,Adj,N,n)
+function dz = distributedObserver_ODE(z,A,C,Lobs,M,gamma,Adj,N,n)
     x = z(1:n);
     xhat = cell(1,N);
 
@@ -22,7 +22,7 @@ function dz = distributedObserver_ODE(z,A,C,L,M,gamma,Adj,N,n)
             coupling = coupling+Adj(i,j)*(xhat{j}-xhat{i});
         end
 
-        dxhat{i} = A*xhat{i}+L{i}*innovation+gamma*M{i}*coupling;
+        dxhat{i} = A*xhat{i}+Lobs{i}*innovation+gamma*M{i}*coupling;
     end
 
     %% Ricostruzione vettore derivata
