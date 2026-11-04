@@ -182,24 +182,24 @@ sol = dde23(@(t,z,Z)distributedObserver_DDE_predictor(z,Z,A,C,Phi,L,M,gamma,Adj,
 t_pred_obs = sol.x';
 z_pred_obs = sol.y';
 %% Sim dinamiche globali errore con delay
-% Senza compensazione
 Lambda_cell = cell(1,n_agents);
 for i = 1:n_agents
     Lambda_cell{i} = A - L{i}*C{i};
 end
 Lambda = blkdiag(Lambda_cell{:});
 Mglob  = blkdiag(M{:});
-A0_nc = Lambda;
-A1_nc = -gamma*Mglob*kron(Lgraph,eye(n));
+% Senza compensazione
+A0_np = Lambda;
+A1_np = -gamma*Mglob*kron(Lgraph,eye(n));
 e0 = zeros(n*n_agents,1);
 for i = 1:n_agents
-    idx = (i-1)*n + (1:n);
+    idx = (i-1)*n+(1:n);
     e0(idx) = xhat0{i} - x0;
 end
-sol_nc_err = dde23(@(t,e,E) A0_nc*e + A1_nc*E(:,1),tau,e0,[0 tmax]);
+sol_nc_err = dde23(@(t,e,E) A0_np*e + A1_np*E(:,1),tau,e0,[0 tmax]);
 t_nc_err = sol_nc_err.x';
 e_np_err = sol_nc_err.y';
-% Con compensazione
+% Con compensazionen + (1:n)
 Dgraph = diag(sum(Adj,2));
 A0_pred = Lambda-gamma*Mglob*kron(Dgraph,eye(n));
 A1_pred = gamma*Mglob*kron(Adj,Phi);
@@ -207,24 +207,24 @@ sol_err = dde23(@(t,e,E) A0_pred*e + A1_pred*E(:,1),tau,e0,[0 tmax]);
 t_pred_err = sol_err.x';
 e_pred_err = sol_err.y';
 %% Plot dinamiche agente
-% agent_to_show = 3;
-% idx = n + (agent_to_show-1)*n + (1:n);
-% % Senza compensazione
-% figure;subplot(2,1,1);hold on;grid on
-% plot(t_np_obs,z_np_obs(:,idx))
-% title('Without compensation')
-% hold off
-% % Con compensazione
-% subplot(2,1,2);hold on;grid on
-% plot(t_pred_obs,z_pred_obs(:,idx))
-% title('With predictor')
-% hold off
+agent_to_show = 1;
+idx = n + (agent_to_show-1)*n+(1:n);
+% Senza compensazione
+figure(1);subplot(2,1,1);hold on;grid on
+plot(t_np_obs,z_np_obs(:,idx))
+title('Without compensation')
+hold off
+% Con compensazione
+subplot(2,1,2);hold on;grid on
+plot(t_pred_obs,z_pred_obs(:,idx))
+title('With predictor')
+hold off
 %% Plot dinamiche errori
-figure;hold on;grid on;
+figure(2);hold on;grid on;
 % Senza compensazione
 subplot(2,1,1);hold on;grid on
 for i = 1:n_agents
-    idx = (i-1)*n + (1:n);
+    idx = (i-1)*n+(1:n);
     plot(t_nc_err,vecnorm(e_np_err(:,idx),2,2));
 end
 xlabel('t')
@@ -235,7 +235,7 @@ hold off
 % Con compensazione
 subplot(2,1,2);hold on;grid on
 for i = 1:n_agents
-    idx = (i-1)*n + (1:n);
+    idx = (i-1)*n+(1:n);
     plot(t_pred_err,vecnorm(e_pred_err(:,idx),2,2));
 end
 xlabel('t')
