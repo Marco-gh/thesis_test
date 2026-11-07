@@ -1,4 +1,4 @@
-function dz = distributedObserver_DDE_predictor(z,Z,A,C,Phi,L,M,gamma,Adj,n_agents,n)
+function dz = distributedObserver_DDE_predictor_1(z,Z,A,C,Phi,L,M,gamma,Adj,n_agents,n)
     z_tau = Z(:,1);
     x = z(1:n);
 
