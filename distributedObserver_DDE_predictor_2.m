@@ -6,16 +6,16 @@ function dz = distributedObserver_DDE_predictor_2(z,Z,A,C,Phi,Gamma,L,M,gamma,Ad
     dz(1:n) = A*x;
 
     %% Predizione per ogni nodo j
-    % Quella affetta da ritardo e che verrà poi effettivamente passata
+    % Quella affetta da ritardo e che verrà poi effettivamente passata, per
+    % semplicità tutto calcolato qua dentro
     xhat_pred = cell(1,n_agents);
     for j = 1:n_agents
         idx_j = n+(j-1)*n+(1:n);
         xhat_j_tau = z_tau(idx_j);
         y_j_tau = C{j}*x_tau;
         innovation_j_tau = L{j}*(y_j_tau-C{j}*xhat_j_tau);
-        xhat_pred{j} = Phi*xhat_j_tau+ Gamma*innovation_j_tau;
+        xhat_pred{j} = Phi*xhat_j_tau+ Gamma*innovation_j_tau; % Approssimazione che verrà poi condivisa sulla rete
     end
-
     %% Dinamica di ogni observer i
     for i = 1:n_agents
         idx_i = n+(i-1)*n+(1:n);

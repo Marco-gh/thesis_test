@@ -1,13 +1,13 @@
 clc;clear;close all;rng('default')
 %% Parametri simulazione
-tmax = 500;
-tau = 5;
-alpha = 1e-3; % Tasso di decadimento
+tmax = 50;
+tau = 1.5; % Il limite in questo caso sembra essere ~1.6
+alpha = 1e-4; % Tasso di decadimento concsiderato 1e-4
 %% DEF SIS
 % 3 modi marginalmente stabili
 A = [0 1 0 0 0 0 
      -1 0 0 0 0 0
-     0 0 0 2 0 0
+     0 0 0 1 0 0
      0 0 -2 0 0 0
      0 0 0 0 0 3
      0 0 0 0 -3 0];
@@ -15,7 +15,7 @@ C{1}=[1 0 0 0 0 0]; % Vede modi 1,2
 C{2}=[0 0 1 0 0 0]; % Vede modo 2
 C{3}=[0 0 0 0 0 1]; % Vede modo 3
 
-[~,eigA,~] = eig(A);
+eigA = eig(A)
 n = size(A,1);
 %% Stato aumentato [x; u_obs]
 A_aug = [A eye(n);zeros(n) zeros(n)];
@@ -36,7 +36,7 @@ Lgraph = [2 -1 -1
 Adj = diag(diag(Lgraph))-Lgraph;
 %% Test osservabilità globale
 H = vertcat(C{:});
-rank(H)
+rank(H);
 assert(rank(obsv(A,H))==n)
 %% Matrici di osservabilità
 rankO = cell(1,n_agents);
@@ -229,27 +229,27 @@ e_pred_err_2 = sol_err2.y';
 %% Plot dinamiche agente
 agent_to_show = 1;
 idx = n+(agent_to_show-1)*n+(1:n);
-figure;hold on;
+figure;
 % Senza predizione
-subplot(3,1,1);grid on
-plot(t_np_obs,z_np_obs(:,[1 2 3 4]))
+subplot(3,1,1);hold on;grid on
+plot(t_np_obs,z_np_obs(:,[1:n]))
 plot(t_np_obs,z_np_obs(:,idx),'--')
 title('Without prediction')
-legend('$x_1$','$x_2$','$x_3','$x_4','$\hat{x}_1$','$\hat{x}_2$','$\hat{x}_3$','$\hat{x}_4$','Interpreter','latex')
+legend('$x_1$','$x_2$','$x_3','$x_4','$x_5','$x_6','$\hat{x}_1$','$\hat{x}_2$','$\hat{x}_3$','$\hat{x}_4$','$\hat{x}_5$','$\hat{x}_6$','Interpreter','latex')
 hold off
 % Con predizione 1
 subplot(3,1,2);hold on;grid on
-plot(t_pred_obs_1,z_pred_obs_1(:,[1 2 3 4]))
+plot(t_pred_obs_1,z_pred_obs_1(:,[1:n]))
 plot(t_pred_obs_1,z_pred_obs_1(:,idx),'--')
 title('With predictor')
-legend('$x_1$','$x_2$','$x_3','$x_4','$\hat{x}_1$','$\hat{x}_2$','$\hat{x}_3$','$\hat{x}_4$','Interpreter','latex')
+legend('$x_1$','$x_2$','$x_3','$x_4','$x_5','$x_6','$\hat{x}_1$','$\hat{x}_2$','$\hat{x}_3$','$\hat{x}_4$','$\hat{x}_5$','$\hat{x}_6$','Interpreter','latex')
 hold off
 % Con predizione 2
 subplot(3,1,3);hold on;grid on
-plot(t_pred_obs_2,z_pred_obs_2(:,[1 2 3 4]))
+plot(t_pred_obs_2,z_pred_obs_2(:,[1:n]))
 plot(t_pred_obs_2,z_pred_obs_2(:,idx),'--')
 title('With predictor')
-legend('$x_1$','$x_2$','$x_3','$x_4','$\hat{x}_1$','$\hat{x}_2$','$\hat{x}_3$','$\hat{x}_4$','Interpreter','latex')
+legend('$x_1$','$x_2$','$x_3','$x_4','$x_5','$x_6','$\hat{x}_1$','$\hat{x}_2$','$\hat{x}_3$','$\hat{x}_4$','$\hat{x}_5$','$\hat{x}_6$','Interpreter','latex')
 hold off
 %% Plot dinamiche errori
 figure;hold on;grid on;
@@ -272,10 +272,10 @@ for i = 1:n_agents
 end
 xlabel('t')
 ylabel('||e_i||_2')
-title('With prediction')
+title('With prediction 1')
 legend('$e_1$','$e_2$','$e_3$','$e_4$','Interpreter','latex')
 hold off
-% Con predizione 3
+% Con predizione 2
 subplot(3,1,3);hold on;grid on
 for i = 1:n_agents
     idx = (i-1)*n+(1:n);
@@ -283,12 +283,23 @@ for i = 1:n_agents
 end
 xlabel('t')
 ylabel('||e_i||_2')
-title('With prediction')
+title('With prediction 2')
 legend('$e_1$','$e_2$','$e_3$','$e_4$','Interpreter','latex')
 hold off
-%% Comparazione errori finali
-for i = 1:n_agents
-    idx = (i-1)*n + (1:n);
-    fprintf('Pred1 e%d final = %.4e\n',i,norm(e_pred_err_1(end,idx)));
-    fprintf('Pred2 e%d final = %.4e\n',i,norm(e_pred_err_2(end,idx)));
-end
+%% Comparison Predictor 1 vs Predictor 2
+% figure;
+% hold on;
+% grid on;
+% for i = 1:n_agents
+%     idx = (i-1)*n + (1:n);
+% 
+%     % Predictor 1
+%     plot(t_pred_err, vecnorm(e_pred_err_1(:,idx),2,2),'-','LineWidth',1.5);
+%     % Predictor 2
+%     plot(t_pred_err_2, vecnorm(e_pred_err_2(:,idx),2,2),'--','LineWidth',1.5);
+% end
+% xlabel('Time [s]');
+% ylabel('$\|e_i\|_2$', 'Interpreter','latex');
+% title('Prediction Error Comparison');
+% legend('$e_1$ - Predictor 1', '$e_1$ - Predictor 2','$e_2$ - Predictor 1', '$e_2$ - Predictor 2','$e_3$ - Predictor 1', '$e_3$ - Predictor 2','Interpreter','latex', 'Location','best');
+% hold off;
