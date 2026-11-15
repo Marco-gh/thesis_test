@@ -1,7 +1,7 @@
 clc;clear;close all;rng('default')
 %% Parametri simulazione
 tmax = 50;
-tau = 1.7; % Il limite in questo caso sembra essere ~1.6
+tau = 1.5; % Il limite in questo caso sembra essere ~1.6
 alpha = 1e-4; % Tasso di decadimento concsiderato 1e-4
 %% DEF SIS E RETE
 % 3 modi marginalmente stabili
@@ -11,19 +11,21 @@ A = [0 1 0 0 0 0
      0 0 -2 0 0 0
      0 0 0 0 0 3
      0 0 0 0 -3 0];
-C{1}=[1 0 0 0 0 0]; % Vede modi 1,2
-C{2}=[0 0 1 0 0 0]; % Vede modo 2
-C{3}=[0 0 0 0 0 1]; % Vede modo 3
+C{1}=[1 0 0 0 0 0];
+C{2}=[0 0 1 0 0 0];
+C{3}=[0 0 0 0 0 1];
 
 eigA = eig(A);
 n = size(A,1);
 
-% Stato aumentato [x; u_obs] per predittore ZOH
-A_aug_ZOH = [A eye(n);zeros(n) zeros(n)];
-exp_aug_ZOH = expm(A_aug_ZOH*tau);
+% Stato aumentato [x; u_obs] per predittori ZOH e FOH
+A_aug_ZOH = [A eye(n) zeros(n);zeros(n) zeros(n) eye(n);zeros(n) zeros(n) zeros(n)];
+exp_aug = expm(A_aug_ZOH*tau);
 
-Phi = exp_aug_ZOH(1:n,1:n);
-Gamma = exp_aug_ZOH(1:n,n+1:end);
+Phi = exp_aug(1:n,1:n);
+Gamma0 = exp_aug(1:n,n+1:2*n);
+Gamma1 = exp_aug(1:n,2*n+1:end);
+
 % Def rete
 n_agents = length(C);
 % Grafo fortemente connesso diretto
@@ -87,7 +89,7 @@ t_pred_obs_1 = sol.x';
 z_pred_obs_1 = sol.y';
 
 % Con delay e predizione ZOH (con correzione costante)
-sol = dde23(@(t,z,Z)distributedObserver_DDE_predictor_2(z,Z,A,C,Phi,Gamma,L,M,gamma,Adj,n_agents,n),tau,in_history,[0 tmax]);
+sol = dde23(@(t,z,Z)distributedObserver_DDE_predictor_ZOH(z,Z,A,C,Phi,Gamma0,L,M,gamma,Adj,n_agents,n),tau,in_history,[0 tmax]);
 t_pred_obs_2 = sol.x';
 z_pred_obs_2 = sol.y';
 %% Sim dinamiche globali ERRORE
@@ -110,7 +112,7 @@ sol_nc_err = dde23(@(t,e,E) A0_np*e+A1_np*E(:,1),tau,e0,[0 tmax]);
 t_nc_err = sol_nc_err.x';
 e_np_err = sol_nc_err.y';
 
-% Con predizione 1 (propagazione libera)
+% Predizione 1 (propagazione libera)
 Dgraph = diag(sum(Adj,2));
 A0_pred = Lambda-gamma*Mglob*kron(Dgraph,eye(n));
 A1_pred = gamma*Mglob*kron(Adj,Phi);
@@ -118,20 +120,34 @@ sol_err = dde23(@(t,e,E) A0_pred*e+A1_pred*E(:,1),tau,e0,[0 tmax]);
 t_pred_err = sol_err.x';
 e_pred_err_1 = sol_err.y';
 
-% Con predizione ZOH
+% Predizione 2 - ZOH
 Dgraph = diag(sum(Adj,2));
-Bpred_cell = cell(1,n_agents);
+B_ZOH = cell(1,n_agents);
 for j = 1:n_agents
-    Bpred_cell{j} = Phi - Gamma*L{j}*C{j};
+    B_ZOH{j} = Phi - Gamma0*L{j}*C{j};
 end
-Bpred = blkdiag(Bpred_cell{:});
+Bgl_ZOH = blkdiag(B_ZOH{:});
 % Dinamica globale errore
 A0_pred2 = Lambda-gamma*Mglob*kron(Dgraph,eye(n));
-A1_pred2 = gamma*Mglob*kron(Adj,eye(n))*Bpred;
+A1_pred2 = gamma*Mglob*kron(Adj,eye(n))*Bgl_ZOH;
 % Simulazione DDE
 sol_err2 = dde23(@(t,e,E) A0_pred2*e + A1_pred2*E(:,1),tau,e0,[0 tmax]);
 t_pred_err_2 = sol_err2.x';
 e_pred_err_2 = sol_err2.y';
+
+% Predizione 3 - FOH
+B_FOH = cell(1,n_agents);
+for j = 1:n_agents
+    B_FOH{j} = Phi-Gamma0*L{j}*C{j}-Gamma1*L{j}*C{j}*(A-L{j}*C{j});
+end
+Bgl_FOH = blkdiag(B_FOH{:});
+% Dinamica globale errore
+A0_pred3 = Lambda-gamma*Mglob*kron(Dgraph,eye(n));
+A1_pred3 = gamma*Mglob*kron(Adj,eye(n))*Bgl_FOH;
+% Simulazione DDE
+sol_err3 = dde23(@(t,e,E) A0_pred3*e + A1_pred3*E(:,1),tau,e0,[0 tmax]);
+t_pred_err_3 = sol_err3.x';
+e_pred_err_3 = sol_err3.y';
 
 %% Plot dinamiche agente
 agent_to_show = 1;
@@ -167,8 +183,9 @@ hold off
 %% Plot dinamiche errori
 leg_e = arrayfun(@(i) sprintf('$e_{%d}$', i), 1:n_agents, 'UniformOutput', false);
 figure;hold on;grid on;
+
 % Senza predizione
-subplot(3,1,1);hold on;grid on
+subplot(4,1,1);hold on;grid on
 for i = 1:n_agents
     idx = (i-1)*n+(1:n);
     plot(t_nc_err,vecnorm(e_np_err(:,idx),2,2));
@@ -178,8 +195,9 @@ ylabel('||e_i||_2')
 title('Without prediction')
 legend(leg_e,'Interpreter','latex')
 hold off
+
 % Con predizione 1 - free prop
-subplot(3,1,2);hold on;grid on
+subplot(4,1,2);hold on;grid on
 for i = 1:n_agents
     idx = (i-1)*n+(1:n);
     plot(t_pred_err,vecnorm(e_pred_err_1(:,idx),2,2));
@@ -189,8 +207,9 @@ ylabel('||e_i||_2')
 title('With free prediction')
 legend(leg_e,'Interpreter','latex')
 hold off
+
 % Con predizione ZOH
-subplot(3,1,3);hold on;grid on
+subplot(4,1,3);hold on;grid on
 for i = 1:n_agents
     idx = (i-1)*n+(1:n);
     plot(t_pred_err_2,vecnorm(e_pred_err_2(:,idx),2,2));
@@ -198,5 +217,17 @@ end
 xlabel('t')
 ylabel('||e_i||_2')
 title('With prediction ZOH')
+legend(leg_e,'Interpreter','latex')
+hold off
+
+% Con predizione FOH
+subplot(4,1,4);hold on;grid on
+for i = 1:n_agents
+    idx = (i-1)*n+(1:n);
+    plot(t_pred_err_3,vecnorm(e_pred_err_3(:,idx),2,2));
+end
+xlabel('t')
+ylabel('||e_i||_2')
+title('With prediction FOH')
 legend(leg_e,'Interpreter','latex')
 hold off
