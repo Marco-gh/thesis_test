@@ -1,7 +1,7 @@
 clc;clear;close all;rng('default')
 %% Parametri simulazione
 tmax = 50;
-tau = 1.5; % Il limite in questo caso sembra essere ~1.6
+tau = 1.7; % Il limite in questo caso sembra essere ~1.6 per ZOH e ~1.55 per FOH
 alpha = 1e-4; % Tasso di decadimento concsiderato 1e-4
 %% DEF SIS E RETE
 % 3 modi marginalmente stabili
@@ -88,10 +88,15 @@ sol = dde23(@(t,z,Z)distributedObserver_DDE_predictor_1(z,Z,A,C,Phi,L,M,gamma,Ad
 t_pred_obs_1 = sol.x';
 z_pred_obs_1 = sol.y';
 
-% Con delay e predizione ZOH (con correzione costante)
+% Con delay e predizione ZOH
 sol = dde23(@(t,z,Z)distributedObserver_DDE_predictor_ZOH(z,Z,A,C,Phi,Gamma0,L,M,gamma,Adj,n_agents,n),tau,in_history,[0 tmax]);
 t_pred_obs_2 = sol.x';
 z_pred_obs_2 = sol.y';
+
+% Con delay e predizione FOH
+% sol = dde23(@(t,z,Z)distributedObserver_DDE_predictor_FOH(z,Z,A,C,Phi,Gamma0,Gamma1,L,M,gamma,Adj,n_agents,n),tau,in_history,[0 tmax]);
+% t_pred_obs_3 = sol.x';
+% z_pred_obs_3 = sol.y';
 %% Sim dinamiche globali ERRORE
 Lambda_cell = cell(1,n_agents);
 for i = 1:n_agents
