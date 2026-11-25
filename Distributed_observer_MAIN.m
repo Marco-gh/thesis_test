@@ -1,7 +1,7 @@
 clc;clear;close all;rng('default')
 %% Parametri simulazione
 tmax = 50;
-tau = 1.7; % Il limite in questo caso sembra essere ~1.6 per ZOH e ~1.55 per FOH
+tau = 1.4; % Il limite in questo caso sembra essere ~1.6 per ZOH e ~1.55 per FOH
 alpha = 1e-4; % Tasso di decadimento concsiderato 1e-4
 %% DEF SIS E RETE
 % 3 modi marginalmente stabili
@@ -118,9 +118,12 @@ t_nc_err = sol_nc_err.x';
 e_np_err = sol_nc_err.y';
 
 % Predizione 1 (propagazione libera)
-Dgraph = diag(sum(Adj,2));
+% Con propagazione libera solo della stima del nodo vicino
 A0_pred = Lambda-gamma*Mglob*kron(Dgraph,eye(n));
 A1_pred = gamma*Mglob*kron(Adj,Phi);
+% Con propagazione anche di x_i(t-tau)
+% A0_pred = Lambda;
+% A1_pred = -gamma*Mglob*kron(Lgraph,Phi);
 sol_err = dde23(@(t,e,E) A0_pred*e+A1_pred*E(:,1),tau,e0,[0 tmax]);
 t_pred_err = sol_err.x';
 e_pred_err_1 = sol_err.y';
